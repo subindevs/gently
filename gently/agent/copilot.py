@@ -196,8 +196,8 @@ class MicroscopyCopilot:
         if self.backend:
             connection_status = {
                 'queue_server': self.backend.is_connected,
-                'sam_server': self.backend.has_sam,
-                'databroker': self.backend.has_databroker and self.backend.is_connected,
+                'sam_server': getattr(self.backend, 'has_sam', False),
+                'databroker': getattr(self.backend, 'has_databroker', False) and self.backend.is_connected,
             }
         else:
             connection_status = None  # Offline mode
