@@ -21,6 +21,8 @@ import numpy as np
 if TYPE_CHECKING:
     from ..visualization.server import VisualizationServer
 
+from ..interface import MicroscopeBackend
+
 logger = logging.getLogger(__name__)
 
 from .state import ExperimentState, EmbryoState, ImageRecord
@@ -53,7 +55,7 @@ class MicroscopyCopilot:
         api_key: Optional[str] = None,
         storage_path: Path = Path("./experiment_data"),
         model: str = "claude-opus-4-5-20251101",
-        microscope_client=None,
+        backend=None,
         session_id: Optional[str] = None,
     ):
         """
@@ -65,8 +67,8 @@ class MicroscopyCopilot:
             Where to store experiment data and images
         model : str
             Claude model to use
-        microscope_client : MicroscopeClient, optional
-            RPC client for microscope server. Required for hardware control.
+        backend : MicroscopeBackend, optional
+            Hardware backend implementing the MicroscopeBackend protocol.
         session_id : str, optional
             Session ID to resume. If None, creates new session.
         """
@@ -117,12 +119,12 @@ class MicroscopyCopilot:
             auto_save=True
         )
 
-        # Hardware interface via RPC client
-        self.client = microscope_client
+        # Hardware interface via backend
+        self.backend = backend
 
         # Databroker (optional, for data catalog integration)
-        # Get from client if available
-        self.databroker = getattr(microscope_client, '_db', None) if microscope_client else None
+        # Get from backend if available
+        self.databroker = getattr(backend, '_db', None) if backend else None
 
         # Callbacks
         self.on_message_callback: Optional[Callable] = None
@@ -191,11 +193,11 @@ class MicroscopyCopilot:
             If None, no context section is included in the prompt.
         """
         # Build connection status
-        if self.client:
+        if self.backend:
             connection_status = {
-                'queue_server': self.client.is_connected,
-                'sam_server': self.client.has_sam,
-                'databroker': self.client.has_databroker and self.client.is_connected,
+                'queue_server': self.backend.is_connected,
+                'sam_server': self.backend.has_sam,
+                'databroker': self.backend.has_databroker and self.backend.is_connected,
             }
         else:
             connection_status = None  # Offline mode
@@ -526,7 +528,7 @@ Write a brief status summary. Examples:
 
         try:
             self.timelapse_orchestrator = TimelapseOrchestrator(
-                microscope_client=self.client,
+                backend=self.backend,
                 experiment_state=self.experiment,
                 perception_manager=self.perception_manager,
                 on_volume_callback=self.on_volume_acquired,
@@ -703,7 +705,7 @@ Write a brief status summary. Examples:
 
     def _has_microscope(self) -> bool:
         """Check if microscope server connection is available"""
-        return self.client is not None
+        return self.backend is not None
 
     # ===== Session Management Methods =====
 
@@ -1494,7 +1496,7 @@ Write a brief status summary. Examples:
         # Build execution context
         context = {
             'copilot': self,
-            'client': getattr(self, 'client', None),
+            'backend': getattr(self, 'backend', None),
             'databroker': getattr(self, 'databroker', None),
         }
 

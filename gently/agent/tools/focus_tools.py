@@ -80,11 +80,11 @@ async def fine_focus(
     context : dict
         Execution context with client and copilot
     """
-    client = context.get('client')
+    backend = context.get('backend')
     copilot = context.get('copilot')
 
     if not client:
-        return "Error: No microscope client connected"
+        return "Error: No microscope backend connected"
 
     # Validate algorithm
     valid_algorithms = ['fft_bandpass', 'gradient', 'volath', 'variance']
@@ -105,7 +105,7 @@ async def fine_focus(
         captured_positions = []
 
         for i, pos in enumerate(positions):
-            result = await client.capture_lightsheet_image(
+            result = await backend.capture_lightsheet_image(
                 piezo_position=float(pos),
                 galvo_position=float(galvo_position)
             )
@@ -160,7 +160,7 @@ async def fine_focus(
 
         # Move to best position if requested
         if move_to_best:
-            await client.capture_lightsheet_image(
+            await backend.capture_lightsheet_image(
                 piezo_position=float(best_position),
                 galvo_position=float(galvo_position)
             )
@@ -244,10 +244,10 @@ async def get_focus_score(
     context : dict
         Execution context
     """
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not client:
-        return "Error: No microscope client connected"
+        return "Error: No microscope backend connected"
 
     valid_algorithms = ['fft_bandpass', 'gradient', 'volath', 'variance']
     if algorithm not in valid_algorithms:
@@ -256,10 +256,10 @@ async def get_focus_score(
     try:
         # If no piezo position specified, use current position
         if piezo_position is None:
-            piezo_position = await client.get_piezo_position()
+            piezo_position = await backend.get_piezo_position()
 
         # Capture image
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=float(piezo_position),
             galvo_position=float(galvo_position)
         )

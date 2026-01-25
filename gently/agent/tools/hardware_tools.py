@@ -39,7 +39,7 @@ This only moves XY - piezo/galvo are controlled separately during acquisition. M
 async def move_to_embryo(embryo_id: str, context: Dict) -> str:
     """Move stage to embryo position"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -54,7 +54,7 @@ async def move_to_embryo(embryo_id: str, context: Dict) -> str:
     try:
         x = embryo.stage_position.get('x', 0)
         y = embryo.stage_position.get('y', 0)
-        await client.move_to_position(x, y)
+        await backend.move_to_position(x, y)
 
         return f"Moved to {embryo_id}\nPosition: ({x:.2f}, {y:.2f}) um"
 
@@ -77,13 +77,13 @@ This reads from hardware - different from embryo stored positions which are in t
 )
 async def get_stage_position(context: Dict) -> str:
     """Get current stage position"""
-    client = context.get('client')
+    backend = context.get('backend')
 
-    if not client:
-        return "Error: No microscope client connected"
+    if not backend:
+        return "Error: No microscope backend connected"
 
     try:
-        pos = await client.get_stage_position()
+        pos = await backend.get_stage_position()
         return f"Current stage position: X={pos[0]:.1f} µm, Y={pos[1]:.1f} µm"
 
     except Exception as e:
@@ -108,14 +108,14 @@ async def move_stage(
     context: Dict = None
 ) -> str:
     """Move stage to arbitrary XY coordinates"""
-    client = context.get('client')
+    backend = context.get('backend')
 
-    if not client:
-        return "Error: No microscope client connected"
+    if not backend:
+        return "Error: No microscope backend connected"
 
     try:
-        await client.move_to_position(x=x, y=y)
-        pos = await client.get_stage_position()
+        await backend.move_to_position(x=x, y=y)
+        pos = await backend.get_stage_position()
         return f"Moved to X={pos[0]:.1f} µm, Y={pos[1]:.1f} µm"
 
     except Exception as e:
@@ -130,10 +130,10 @@ async def move_stage(
 )
 async def set_led(state: str, context: Dict) -> str:
     """Set LED state"""
-    client = context.get('client')
+    backend = context.get('backend')
 
     try:
-        result = await client.set_led(state)
+        result = await backend.set_led(state)
         if result.get('success'):
             return f"LED set to '{state}'"
         else:
@@ -150,10 +150,10 @@ async def set_led(state: str, context: Dict) -> str:
 )
 async def get_led_status(context: Dict) -> str:
     """Get LED status"""
-    client = context.get('client')
+    backend = context.get('backend')
 
     try:
-        result = await client.get_led_status()
+        result = await backend.get_led_status()
         if result.get('success'):
             current = result.get('current_state', 'unknown')
             available = result.get('available_configs', [])
@@ -239,7 +239,7 @@ async def _adaptive_focus_sweep(
     )
 
     for piezo in sparse_positions:
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=float(piezo),
             galvo_position=float(galvo_pos)
         )
@@ -287,7 +287,7 @@ async def _adaptive_focus_sweep(
     )
 
     for piezo in dense_positions:
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=float(piezo),
             galvo_position=float(galvo_pos)
         )
@@ -457,7 +457,7 @@ async def _fine_focus_sweep(
 
     piezo_scores = []
     for piezo in positions:
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=float(piezo),
             galvo_position=float(galvo_pos)
         )
@@ -749,7 +749,7 @@ async def binary_edge_search(
         piezo = piezo_heuristic + HEURISTIC_SLOPE * mid
 
         # Capture image
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=float(piezo),
             galvo_position=float(mid)
         )
@@ -827,7 +827,7 @@ async def fast_calibrate_embryo(
     from gently.claude_client import AsyncClaudeClient
 
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return False, "Error: No copilot context", 0
@@ -909,7 +909,7 @@ async def fast_calibrate_embryo(
         return right_view
 
     for offset in focus_offsets:
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=float(piezo_expected + offset),
             galvo_position=float(galvo_center)
         )
@@ -944,7 +944,7 @@ async def fast_calibrate_embryo(
             extend_offsets = [3.0, 4.0]
 
         for ext_offset in extend_offsets:
-            result = await client.capture_lightsheet_image(
+            result = await backend.capture_lightsheet_image(
                 piezo_position=float(piezo_expected + ext_offset),
                 galvo_position=float(galvo_center)
             )
@@ -976,7 +976,7 @@ async def fast_calibrate_embryo(
         # Capture 3-point focus grid at second position
         focus_images_2 = []
         for offset in [-2.0, 0.0, 2.0]:
-            result = await client.capture_lightsheet_image(
+            result = await backend.capture_lightsheet_image(
                 piezo_position=float(piezo_expected_second + offset),
                 galvo_position=float(galvo_second)
             )
@@ -1093,7 +1093,7 @@ async def calibrate_embryo(
     from gently.claude_client import AsyncClaudeClient
 
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -1201,7 +1201,7 @@ async def calibrate_embryo(
         pos = embryo.stage_position
         if pos and pos.get('x') is not None and pos.get('y') is not None:
             print(f"  Moving to {embryo_id} position...")
-            await client.move_to_position(pos['x'], pos['y'])
+            await backend.move_to_position(pos['x'], pos['y'])
 
         # Initialize Claude client for vision
         claude_vision = AsyncClaudeClient()
@@ -1215,7 +1215,7 @@ async def calibrate_embryo(
             """Capture image, check embryo presence, and get feature richness score from Claude"""
             nonlocal total_exposures
             piezo_pos = HEURISTIC_SLOPE * galvo_pos + HEURISTIC_OFFSET  # Track light sheet
-            result = await client.capture_lightsheet_image(
+            result = await backend.capture_lightsheet_image(
                 piezo_position=float(piezo_pos),
                 galvo_position=float(galvo_pos)
             )
@@ -1652,7 +1652,7 @@ async def acquire_volume(
 ) -> str:
     """Acquire single volume - moves to embryo first, uses calibration"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -1665,7 +1665,7 @@ async def acquire_volume(
         # Move to embryo position first
         pos = embryo.stage_position
         if pos and pos.get('x') is not None and pos.get('y') is not None:
-            await client.move_to_position(pos['x'], pos['y'])
+            await backend.move_to_position(pos['x'], pos['y'])
 
         # Get calibration parameters (use defaults if not calibrated)
         cal = embryo.calibration or {}
@@ -1691,7 +1691,7 @@ async def acquire_volume(
                 piezo_amplitude = piezo_amplitude + (additional_buffer_um * abs(slope) / 100.0)
                 z_buffer_applied = z_buffer_um
 
-        result = await client.acquire_volume(
+        result = await backend.acquire_volume(
             num_slices=num_slices,
             exposure_ms=exposure_ms,
             galvo_amplitude=galvo_amplitude,
@@ -1782,17 +1782,17 @@ async def view_image(
     context: Dict = None
 ) -> str:
     """Capture and display bottom camera image with embryo annotations"""
-    client = context.get('client')
+    backend = context.get('backend')
     copilot = context.get('copilot')
 
     try:
-        image = await client.capture_bottom_image(exposure_ms=exposure_ms)
+        image = await backend.capture_image(exposure_ms=exposure_ms)
 
         if image is None or image.shape == (100, 100):
             return "Failed to capture image from bottom camera"
 
         # Get current stage position for coordinate conversion
-        stage_pos = await client.get_stage_position()
+        stage_pos = await backend.get_stage_position()
 
         # Prepare embryo annotations if requested
         embryo_annotations = []
@@ -1830,7 +1830,7 @@ async def view_image(
             save_path = f"camera_captures/bottom_camera_{timestamp}.jpg"
             Path("camera_captures").mkdir(exist_ok=True)
 
-            view_result = await client.view_image(
+            view_result = await backend.view_image(
                 image=image,
                 title=title,
                 save_path=save_path,
@@ -1879,7 +1879,7 @@ async def capture_lightsheet(
     context: Dict = None
 ) -> str:
     """Capture and optionally display a single lightsheet image"""
-    client = context.get('client')
+    backend = context.get('backend')
     copilot = context.get('copilot')
 
     try:
@@ -1889,7 +1889,7 @@ async def capture_lightsheet(
             embryo = copilot.experiment.get_embryo_by_any_name(embryo_id)
             if embryo and embryo.stage_position:
                 # Move stage to embryo's position
-                await client.move_to_position(
+                await backend.move_to_position(
                     x=embryo.stage_position['x'],
                     y=embryo.stage_position['y']
                 )
@@ -1914,10 +1914,10 @@ async def capture_lightsheet(
 
             # Fall back to hardware query (unreliable)
             if piezo_position is None:
-                piezo_position = await client.get_piezo_position()
+                piezo_position = await backend.get_piezo_position()
                 focus_source = "hardware_query"
 
-        result = await client.capture_lightsheet_image(
+        result = await backend.capture_lightsheet_image(
             piezo_position=piezo_position,
             galvo_position=galvo_position
         )
@@ -1948,7 +1948,7 @@ async def capture_lightsheet(
                 save_path = f"lightsheet_captures/lightsheet_{timestamp}.jpg"
                 Path("lightsheet_captures").mkdir(exist_ok=True)
 
-                view_result = await client.view_image(
+                view_result = await backend.view_image(
                     image=image,
                     title=f"Lightsheet: piezo={piezo_position:.2f}um, galvo={galvo_position}V",
                     save_path=save_path,
@@ -1985,7 +1985,7 @@ async def batch_lightsheet(
 ) -> str:
     """Capture lightsheet images from all embryos and show in single napari viewer"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot or not client:
         return "Error: Copilot or microscope not available"
@@ -2015,7 +2015,7 @@ async def batch_lightsheet(
                 x = embryo.stage_position.get('x', 0)
                 y = embryo.stage_position.get('y', 0)
                 print(f"  Moving to {embryo_id} at ({x:.1f}, {y:.1f})...")
-                await client.move_to_position(x, y)
+                await backend.move_to_position(x, y)
                 # Wait for stage to settle
                 await asyncio.sleep(0.5)
 
@@ -2036,7 +2036,7 @@ async def batch_lightsheet(
 
             # Capture lightsheet
             print(f"  Capturing {embryo_id} at piezo={piezo_position:.1f}μm, galvo={embryo_galvo:.2f}...")
-            result = await client.capture_lightsheet_image(
+            result = await backend.capture_lightsheet_image(
                 piezo_position=piezo_position,
                 galvo_position=embryo_galvo
             )

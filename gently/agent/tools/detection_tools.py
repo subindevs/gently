@@ -46,7 +46,7 @@ async def detect_embryos(
 ) -> str:
     """Detect embryos automatically"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -58,7 +58,7 @@ async def detect_embryos(
         return "Error: SAM server not connected. Embryo detection requires the SAM segmentation server."
 
     try:
-        result = await client.detect_embryos(
+        result = await backend.detect_embryos(
             min_confidence=min_confidence,
             use_claude_review=use_claude_review,
             exposure_ms=exposure_ms,
@@ -116,7 +116,7 @@ async def manual_mark_embryos(
 ) -> str:
     """Manual embryo marking - shows existing embryos, adds new ones with unique IDs"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -135,7 +135,7 @@ async def manual_mark_embryos(
                 'stage_y': pos.get('y', 0),
             })
 
-        result = await client.manual_mark_embryos(
+        result = await backend.manual_mark_embryos(
             exposure_ms=exposure_ms,
             existing_embryos=existing_embryos if existing_embryos else None
         )
@@ -207,7 +207,7 @@ async def edit_embryos(
 ) -> str:
     """Interactive embryo editor - add, remove, or move embryo positions in napari"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -220,12 +220,12 @@ async def edit_embryos(
 
     try:
         # Capture fresh image
-        image = await client.capture_bottom_image(exposure_ms=exposure_ms)
+        image = await backend.capture_image(exposure_ms=exposure_ms)
         if image is None:
             return "Failed to capture image for editing."
 
         # Get current stage position
-        stage_pos = await client.get_stage_position()
+        stage_pos = await backend.get_stage_position()
 
         # Get current image dimensions for pixel coordinate calculation
         image_center_x = image.shape[1] / 2
@@ -258,7 +258,7 @@ async def edit_embryos(
             })
 
         # Call the edit function on SAM server
-        result = await client.edit_embryos(
+        result = await backend.edit_embryos(
             image=image,
             embryos=existing_embryos,
             stage_position=stage_pos,
@@ -358,7 +358,7 @@ async def show_detected_embryos(
 ) -> str:
     """Show detected embryos visualization using experiment.embryos as source of truth"""
     copilot = context.get('copilot')
-    client = context.get('client')
+    backend = context.get('backend')
 
     if not copilot:
         return "Error: No copilot context"
@@ -370,11 +370,11 @@ async def show_detected_embryos(
         return "No embryos in experiment. Run detect_embryos first."
 
     try:
-        image = await client.capture_bottom_image()
+        image = await backend.capture_image()
         if image is None or image.shape == (100, 100):
             return "Failed to capture image for visualization."
 
-        current_stage = await client.get_stage_position()
+        current_stage = await backend.get_stage_position()
 
         # Calculate pixel positions from experiment embryo positions
         um_per_pixel = get_um_per_pixel()  # Uses centralized defaults from coordinates.py
@@ -416,7 +416,7 @@ async def show_detected_embryos(
         save_path = f"detection_results/detected_embryos_{timestamp}.jpg"
         Path("detection_results").mkdir(exist_ok=True)
 
-        view_result = await client.view_embryos(
+        view_result = await backend.view_embryos(
             image=image,
             embryos=embryos,
             title=f"Embryos ({len(embryos)})",

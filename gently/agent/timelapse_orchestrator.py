@@ -357,7 +357,7 @@ class TimelapseOrchestrator:
 
     def __init__(
         self,
-        microscope_client,
+        backend,
         experiment_state,
         perception_manager=None,
         on_volume_callback: Optional[Callable] = None,
@@ -366,8 +366,8 @@ class TimelapseOrchestrator:
         """
         Parameters
         ----------
-        microscope_client : QueueServerClient
-            Client for hardware control
+        backend : MicroscopeBackend
+            Hardware backend for microscope control
         experiment_state : ExperimentState
             Shared experiment state
         perception_manager : PerceptionManager, optional
@@ -377,7 +377,7 @@ class TimelapseOrchestrator:
         session_id : str, optional
             Session identifier for trace file storage
         """
-        self.client = microscope_client
+        self.backend = backend
         self.experiment = experiment_state
         self.perception_manager = perception_manager
         self.on_volume_callback = on_volume_callback
@@ -649,7 +649,7 @@ class TimelapseOrchestrator:
             # Move to embryo position
             pos = embryo.stage_position
             if pos and pos.get('x') is not None:
-                await self.client.move_to_position(pos['x'], pos['y'])
+                await self.backend.move_to_position(pos['x'], pos['y'])
 
             # Get calibration parameters
             cal = embryo.calibration or {}
@@ -663,7 +663,7 @@ class TimelapseOrchestrator:
 
             if acquisition_mode == 'snap':
                 # Single 2D lightsheet image
-                result = await self.client.capture_lightsheet_image(
+                result = await self.backend.capture_lightsheet_image(
                     piezo_position=piezo_center,
                     galvo_position=galvo_center,
                 )
@@ -671,7 +671,7 @@ class TimelapseOrchestrator:
                 exposure_ms = 50.0  # Default snap exposure
             else:
                 # Full 3D volume (default)
-                result = await self.client.acquire_volume(
+                result = await self.backend.acquire_volume(
                     num_slices=embryo.num_slices,
                     exposure_ms=embryo.exposure_ms,
                     galvo_amplitude=galvo_amplitude,
